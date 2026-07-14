@@ -159,32 +159,9 @@ El **acoplamiento temporal** es la dependencia de que *todos* los servicios de u
 
 **Tablero alternativo en Markdown** (respaldo dentro del repo, por si GitHub Projects no está disponible):
 
-**🗄️ Backlog** *(Avance 2 y 3, aún no arrancan)*
-- Contrato `.proto` (gRPC) — Avance 2
-- Segundo transporte (RabbitMQ/MQTT/NATS) — Avance 2
-- JWT + Guard — Avance 3
-- Integrar Sentry — Avance 3
-- Diagrama final + Defensa — Avance 3
-
-**📋 Por hacer** — *(vacío, no hay pendientes del Avance 1)*
-
-**🔨 En progreso** — *(vacío)*
-
-**👀 En revisión** — *(vacío)*
-
-**✅ Hecho** *(Avance 1, completo)*
-- Definir dominio del MVP
-- Crear repo, proteger `main`, ramas base
-- Docker Compose base (Gateway + 3 MS + Redis + Postgres)
-- MS Pedidos, MS Productos, MS Notificaciones
-- API Gateway
-- Camino síncrono con TCP (Gateway→Pedidos→Productos)
-- Camino asíncrono con Redis (Pedidos publica, Notificaciones consume)
-- Manejo de excepciones (RpcException + Exception Filters)
-- Benchmark de latencia (prom/p95/máx) con `benchmark.js`
-- Prueba de acoplamiento temporal (caída de svc-productos y svc-notificaciones)
-- Diagrama de arquitectura + README Avance 1
-- Tag `v1-avance1`
+| Backlog | Por hacer | En progreso | En revisión | Hecho |
+|---|---|---|---|---|
+| Contrato `.proto` (gRPC) — Av. 2<br>Segundo transporte — Av. 2<br>JWT + Guard — Av. 3<br>Sentry — Av. 3<br>Diagrama final + Defensa — Av. 3 | — | — | — | Definir dominio del MVP<br>Crear repo, proteger `main`, ramas base<br>Docker Compose base (Gateway + 3 MS + Redis + Postgres)<br>MS Pedidos, MS Productos, MS Notificaciones<br>API Gateway<br>Camino síncrono con TCP<br>Camino asíncrono con Redis<br>Manejo de excepciones<br>Benchmark de latencia (prom/p95/máx)<br>Prueba de acoplamiento temporal<br>Diagrama de arquitectura + README Avance 1<br>Tag `v1-avance1` |
 
 ---
 
