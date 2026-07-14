@@ -159,20 +159,32 @@ El **acoplamiento temporal** es la dependencia de que *todos* los servicios de u
 
 **Tablero alternativo en Markdown** (respaldo dentro del repo, por si GitHub Projects no está disponible):
 
-| Backlog | Por hacer | En progreso | En revisión | Hecho |
-|---|---|---|---|---|
-| Contrato `.proto` (gRPC) — Avance 2 | Proteger `main` con reglas adicionales | — | — | Definir dominio del MVP |
-| Segundo transporte (RabbitMQ/MQTT/NATS) — Avance 2 | | | | Crear repo, ramas base |
-| JWT + Guard — Avance 3 | | | | Docker Compose base (Gateway + 3 MS + Redis + Postgres) |
-| Integrar Sentry — Avance 3 | | | | MS Pedidos, MS Productos, MS Notificaciones |
-| Diagrama final + Defensa — Avance 3 | | | | API Gateway |
-| | | | | Camino síncrono con TCP (Gateway→Pedidos→Productos) |
-| | | | | Camino asíncrono con Redis (Pedidos publica, Notificaciones consume) |
-| | | | | Manejo de excepciones (RpcException + Exception Filters) |
-| | | | | Benchmark de latencia (prom/p95/máx) con `benchmark.js` |
-| | | | | Prueba de acoplamiento temporal (caída de svc-productos y svc-notificaciones) |
-| | | | | Diagrama de arquitectura + README Avance 1 |
-| | | | | Tag `v1-avance1` |
+**🗄️ Backlog** *(Avance 2 y 3, aún no arrancan)*
+- Contrato `.proto` (gRPC) — Avance 2
+- Segundo transporte (RabbitMQ/MQTT/NATS) — Avance 2
+- JWT + Guard — Avance 3
+- Integrar Sentry — Avance 3
+- Diagrama final + Defensa — Avance 3
+
+**📋 Por hacer** — *(vacío, no hay pendientes del Avance 1)*
+
+**🔨 En progreso** — *(vacío)*
+
+**👀 En revisión** — *(vacío)*
+
+**✅ Hecho** *(Avance 1, completo)*
+- Definir dominio del MVP
+- Crear repo, proteger `main`, ramas base
+- Docker Compose base (Gateway + 3 MS + Redis + Postgres)
+- MS Pedidos, MS Productos, MS Notificaciones
+- API Gateway
+- Camino síncrono con TCP (Gateway→Pedidos→Productos)
+- Camino asíncrono con Redis (Pedidos publica, Notificaciones consume)
+- Manejo de excepciones (RpcException + Exception Filters)
+- Benchmark de latencia (prom/p95/máx) con `benchmark.js`
+- Prueba de acoplamiento temporal (caída de svc-productos y svc-notificaciones)
+- Diagrama de arquitectura + README Avance 1
+- Tag `v1-avance1`
 
 ---
 
