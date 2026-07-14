@@ -1,0 +1,15 @@
+
+▶️  Midiendo POST http://localhost:3000/api/pedidos  (200 peticiones)
+
+  50/200  100/200  150/200  200/200
+──────────── RESULTADOS ────────────
+Peticiones        : 200
+Latencia promedio : 110.57 ms
+Latencia p95      : 119.00 ms
+Latencia máx      : 332.00 ms
+Errores           : 0
+────────────────────────────────────
+
+📋 Fila para el README:
+| http://localhost:3000/api/pedidos | 110.57 | 119.00 | 332.00 |
+

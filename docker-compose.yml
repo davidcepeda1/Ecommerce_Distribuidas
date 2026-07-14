@@ -1,0 +1,104 @@
+# =============================================================================
+#  docker-compose.yml  —  MVP Avance 1 (Tarea 1)
+#  Gateway + 3 microservicios + Redis (eventos) + Postgres.
+#
+#  Levantar:   docker compose up -d --build
+#  Ver:        docker compose ps
+#  Probar:     curl http://localhost:3000/api/productos
+# =============================================================================
+services:
+
+  db:
+    image: postgres:16-alpine
+    environment: { POSTGRES_USER: app, POSTGRES_PASSWORD: app, POSTGRES_DB: app }
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Broker de EVENTOS (camino asíncrono de la Tarea 1).
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+    restart: unless-stopped
+
+  # --- Microservicio B (segundo salto de la cadena síncrona) ---
+  # Se levanta primero: MS Pedidos depende de él para validar/reservar stock.
+  svc-productos:
+    build:
+      context: .
+      dockerfile: apps/productos/Dockerfile
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: app
+      DB_PASSWORD: app
+      DB_NAME: app
+      PORT: 3001
+      # Simula trabajo real downstream (ej. consultar inventario externo).
+      # Sin esto, el round-trip TCP local (~1-2ms) no deja ver la acumulación.
+      LATENCIA_SIMULADA_MS: 80
+    ports: ["3001:3001"]
+    depends_on:
+      db: { condition: service_healthy }
+    restart: unless-stopped
+
+  # --- Microservicio A (inicia la cadena síncrona por TCP + publica en Redis) ---
+  svc-pedidos:
+    build:
+      context: .
+      dockerfile: apps/pedidos/Dockerfile
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: app
+      DB_PASSWORD: app
+      DB_NAME: app
+      PORT: 3000
+      SVC_PRODUCTOS_HOST: svc-productos   # destino del salto síncrono (TCP)
+      SVC_PRODUCTOS_PORT: 3001
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    ports: ["3010:3000"]                  # puerto TCP expuesto solo para depurar
+    depends_on:
+      db: { condition: service_healthy }
+      svc-productos:
+        condition: service_started
+      redis:
+        condition: service_started
+    restart: unless-stopped
+
+  # --- Microservicio C (consumidor de EVENTOS por Redis, camino asíncrono) ---
+  svc-notificaciones:
+    build:
+      context: .
+      dockerfile: apps/notificaciones/Dockerfile
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      # Simula trabajo real de envío (email/push). No afecta al emisor porque
+      # este microservicio se consume vía evento, no vía espera síncrona.
+      LATENCIA_SIMULADA_MS: 150
+    depends_on: [redis]
+    restart: unless-stopped
+
+  # --- API Gateway (punto único de entrada, expone HTTP) ---
+  gateway:
+    build:
+      context: .
+      dockerfile: apps/gateway/Dockerfile
+    environment:
+      PORT: 3000
+      SVC_PEDIDOS_HOST: svc-pedidos
+      SVC_PEDIDOS_PORT: 3000
+      SVC_PRODUCTOS_HOST: svc-productos
+      SVC_PRODUCTOS_PORT: 3001
+    ports: ["3000:3000"]                  # el sistema se prueba en http://localhost:3000
+    depends_on:
+      svc-pedidos:
+        condition: service_started
+      svc-productos:
+        condition: service_started
+    restart: unless-stopped

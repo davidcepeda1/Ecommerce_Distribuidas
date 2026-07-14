@@ -1,0 +1,15 @@
+
+▶️  Midiendo POST http://localhost:3000/api/pedidos/async  (200 peticiones)
+
+  50/200  100/200  150/200  200/200
+──────────── RESULTADOS ────────────
+Peticiones        : 200
+Latencia promedio : 5.96 ms
+Latencia p95      : 7.00 ms
+Latencia máx      : 81.00 ms
+Errores           : 0
+────────────────────────────────────
+
+📋 Fila para el README:
+| http://localhost:3000/api/pedidos/async | 5.96 | 7.00 | 81.00 |
+

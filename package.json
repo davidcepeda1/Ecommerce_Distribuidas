@@ -1,0 +1,15 @@
+{
+  "name": "ecommerce-microservicios",
+  "private": true,
+  "version": "1.0.0",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start:gateway": "pnpm --filter gateway start:dev",
+    "start:pedidos": "pnpm --filter pedidos start:dev",
+    "start:productos": "pnpm --filter productos start:dev",
+    "start:notificaciones": "pnpm --filter notificaciones start:dev",
+    "build:all": "pnpm -r build"
+  }
+}

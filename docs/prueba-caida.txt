@@ -1,0 +1,46 @@
+====================================================================
+ PRUEBA DE ACOPLAMIENTO TEMPORAL — Avance 1
+ Fecha: lun 13 jul 2026 23:38:59 -05
+====================================================================
+
+--- Estado inicial: todos los servicios arriba ---
+SERVICE              STATUS
+db                   Up About a minute (healthy)
+gateway              Up About a minute
+redis                Up About a minute
+svc-notificaciones   Up About a minute
+svc-pedidos          Up About a minute
+svc-productos        Up About a minute
+
+--- 1) Apagando svc-productos (downstream del camino síncrono) ---
+
+>> POST /api/pedidos (SÍNCRONO) con svc-productos apagado:
+{"statusCode":503,"message":"MS Productos no disponible: no se pudo verificar stock (acoplamiento temporal)"}
+HTTP status: 503
+
+>> POST /api/pedidos/async (ASÍNCRONO) con svc-productos apagado (no depende de él, debe seguir funcionando):
+{"aceptado":true,"mensaje":"Pedido aceptado, procesándose de forma asíncrona"}
+HTTP status: 201
+
+--- Reactivando svc-productos ---
+
+--- 2) Apagando svc-notificaciones (consumidor del camino asíncrono) ---
+
+>> POST /api/pedidos (SÍNCRONO) con svc-notificaciones apagado (Pedidos no espera a Notificaciones, debe seguir funcionando):
+{"productoId":"85334519-914d-4c8f-9ff0-44cbd880dd7d","cantidad":1,"estado":"CONFIRMADO","id":"c67b700d-313d-4814-a836-ac61405486f4","createdAt":"2026-07-14T04:39:15.727Z"}
+HTTP status: 201
+
+>> POST /api/pedidos/async (ASÍNCRONO) con svc-notificaciones apagado (el emisor no espera al consumidor):
+{"aceptado":true,"mensaje":"Pedido aceptado, procesándose de forma asíncrona"}
+HTTP status: 201
+
+--- Reactivando svc-notificaciones ---
+
+--- Estado final: todos los servicios arriba de nuevo ---
+SERVICE              STATUS
+db                   Up About a minute (healthy)
+gateway              Up About a minute
+redis                Up About a minute
+svc-notificaciones   Up 3 seconds
+svc-pedidos          Up About a minute
+svc-productos        Up 10 seconds
