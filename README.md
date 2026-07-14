@@ -161,18 +161,18 @@ El **acoplamiento temporal** es la dependencia de que *todos* los servicios de u
 
 | Backlog | Por hacer | En progreso | En revisión | Hecho |
 |---|---|---|---|---|
-| Contrato `.proto` (gRPC) — Avance 2 | Proteger `main` con reglas adicionales | — | — | Definir dominio del MVP |
-| Segundo transporte (RabbitMQ/MQTT/NATS) — Avance 2 | | | | Crear repo, ramas base |
-| JWT + Guard — Avance 3 | | | | Docker Compose base (Gateway + 3 MS + Redis + Postgres) |
-| Integrar Sentry — Avance 3 | | | | MS Pedidos, MS Productos, MS Notificaciones |
-| Diagrama final + Defensa — Avance 3 | | | | API Gateway |
-| | | | | Camino síncrono con TCP (Gateway→Pedidos→Productos) |
-| | | | | Camino asíncrono con Redis (Pedidos publica, Notificaciones consume) |
-| | | | | Manejo de excepciones (RpcException + Exception Filters) |
-| | | | | Benchmark de latencia (prom/p95/máx) con `benchmark.js` |
-| | | | | Prueba de acoplamiento temporal (caída de svc-productos y svc-notificaciones) |
-| | | | | Diagrama de arquitectura + README Avance 1 |
-| | | | | Tag `v1-avance1` |
+| Contrato `.proto` (gRPC) — Avance 2 | — | — | — | Definir dominio del MVP |
+| Segundo transporte (RabbitMQ/MQTT/NATS) — Avance 2 | — | — | — | Crear repo, proteger `main`, ramas base |
+| JWT + Guard — Avance 3 | — | — | — | Docker Compose base (Gateway + 3 MS + Redis + Postgres) |
+| Integrar Sentry — Avance 3 | — | — | — | MS Pedidos, MS Productos, MS Notificaciones |
+| Diagrama final + Defensa — Avance 3 | — | — | — | API Gateway |
+| — | — | — | — | Camino síncrono con TCP (Gateway→Pedidos→Productos) |
+| — | — | — | — | Camino asíncrono con Redis (Pedidos publica, Notificaciones consume) |
+| — | — | — | — | Manejo de excepciones (RpcException + Exception Filters) |
+| — | — | — | — | Benchmark de latencia (prom/p95/máx) con `benchmark.js` |
+| — | — | — | — | Prueba de acoplamiento temporal (caída de svc-productos y svc-notificaciones) |
+| — | — | — | — | Diagrama de arquitectura + README Avance 1 |
+| — | — | — | — | Tag `v1-avance1` |
 
 ---
 
