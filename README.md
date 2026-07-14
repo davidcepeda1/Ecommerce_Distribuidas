@@ -90,7 +90,7 @@ flowchart LR
 **Nota:** en la implementación real, `POST /api/pedidos` ejecuta *ambos* caminos en una sola operación de negocio: espera el salto síncrono a Productos (reserva de stock) y, tras confirmar, publica el evento asíncrono a Notificaciones sin esperarlo. El endpoint `POST /api/pedidos/async` existe además como una variante puramente asíncrona (sin validación de stock), usada para poder **medir y comparar de forma aislada** la latencia de cada camino en el benchmark.
 
 ## 🧭 Metodología
-- **Kanban:** <<enlace GitHub Projects>> (captura en `/docs`).
+- **Kanban:** [GitHub Projects](https://github.com/users/davidcepeda1/projects/1) (captura: `docs/kanban-avance1.png`).
 - **Ramificación:** GitHub Flow — `main` protegida, ramas `feat/…`, `fix/…`, `docs/…`, Pull Requests revisados por otro integrante, tags por avance (`v1-avance1`, `v2-avance2`, `v3-final`).
 - **Commits semánticos:** Conventional Commits (`tipo(alcance): descripción`).
 
@@ -153,7 +153,9 @@ La latencia se **acumula** en el camino síncrono porque cada salto TCP es una e
 El **acoplamiento temporal** es la dependencia de que *todos* los servicios de una cadena síncrona estén vivos y respondiendo *al mismo tiempo* para que la operación complete con éxito: si Productos cae, toda la petición de Pedidos falla, aunque Pedidos y el Gateway estén perfectamente sanos. Esto se evidenció directamente con el `503` del Escenario 1. El camino asíncrono rompe esta dependencia: Pedidos publica el evento y continúa sin preguntar si hay algún consumidor vivo del otro lado — por eso, apagar Notificaciones no afecta en absoluto la respuesta al cliente (Escenario 2), y ese es exactamente el desacople que se buscaba demostrar.
 
 ### 🗂️ Kanban
-<<enlace GitHub Projects>> — captura en `/docs/kanban-avance1.png`.
+[github.com/users/davidcepeda1/projects/1](https://github.com/users/davidcepeda1/projects/1)
+
+![Tablero Kanban Avance 1](docs/kanban-avance1.png)
 
 ---
 
