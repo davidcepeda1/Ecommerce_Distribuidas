@@ -11,10 +11,10 @@
 ## 👥 Equipo
 | Integrante | Rol | GitHub |
 |---|---|---|
-| <<Nombre 1>> | <<Backend / Arquitectura>> | @usuario |
-| <<Nombre 2>> | <<Transportes / gRPC>> | @usuario |
-| <<Nombre 3>> | <<Seguridad / Observabilidad>> | @usuario |
-| <<Nombre 4 (opcional)>> | <<Documentación / QA>> | @usuario |
+| David Gustavo Cepeda Salguero | Backend / Arquitectura | [@davidcepeda1](https://github.com/davidcepeda1) |
+| Zaith Alejandro Manangón Vinueza | Transportes / gRPC | [@zmanangon09](https://github.com/zmanangon09) |
+| Brayan Josué Jácome Noroña | Seguridad / Observabilidad | [@BrayanJac](https://github.com/BrayanJac) |
+| Juan Carlos Granda Arcos | Documentación / QA | [@Juangranda3424](https://github.com/Juangranda3424) |
 
 ## 🧩 Descripción del MVP
 Sistema de e-commerce simplificado a 2-3 entidades para poder concentrar el esfuerzo en la **arquitectura de comunicación** entre microservicios y no en features de negocio. Un cliente crea un **pedido** de un **producto**; el sistema valida stock en tiempo real (camino síncrono) y, si el pedido se confirma, dispara una **notificación** desacoplada en el tiempo (camino asíncrono).
