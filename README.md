@@ -208,12 +208,17 @@ message ProductoResponse { string id = 1; string nombre = 2; double precio = 3; 
 - **Cliente:** el Gateway registra un `ClientGrpc` (`PRODUCTOS_GRPC`) y expone `GET /api/grpc/productos/:id`, que llama a Productos por gRPC con tipos fuertes derivados del `.proto`.
 - **Evidencia:** [`docs/avance2-grpc.txt`](docs/avance2-grpc.txt) — llamada exitosa (`200`) y error controlado (`404`).
 
+![Llamada gRPC exitosa (Postman)](docs/avance2-grpc-ok.png)
+![Error gRPC controlado NOT_FOUND](docs/avance2-grpc-error.png)
+
 ### 🐇 Segundo transporte — RabbitMQ (cola)
 Flujo **distinto** al `pedido.creado` de Redis. Cuando una reserva de stock deja el producto por **debajo del umbral** (`UMBRAL_STOCK_BAJO`, por defecto 5), MS Productos publica el evento **`stock.bajo`** en la cola durable `notificaciones_stock`; MS Notificaciones la consume y emite una alerta de reabastecimiento. El emisor **no espera** al consumidor (patrón *queue*, fire-and-forget).
 
 - MS Notificaciones es ahora híbrido: consume **Redis** (`pedido.creado`) **y RabbitMQ** (`stock.bajo`) a la vez.
 - Panel de RabbitMQ para captura: `http://localhost:15672` (guest/guest) → *Queues* → `notificaciones_stock`.
 - **Evidencia:** [`docs/avance2-rabbitmq.txt`](docs/avance2-rabbitmq.txt) — publicación y consumo del evento.
+
+![Cola notificaciones_stock en el panel de RabbitMQ](docs/avance2-rabbitmq-panel.png)
 
 ### 🔁 Comparación de transportes
 | Transporte | Tipo | Patrón | Uso en el proyecto |
@@ -232,6 +237,8 @@ Flujo **distinto** al `pedido.creado` de Redis. Cuando una reserva de stock deja
 
 ### 🗂️ Kanban (Avance 2)
 [github.com/users/davidcepeda1/projects/1](https://github.com/users/davidcepeda1/projects/1) — tarjetas de `avance-2` (contrato `.proto`, gRPC, segundo transporte, excepciones) movidas a **Hecho**.
+
+![Tablero Kanban Avance 2](docs/kanban-avance2.png)
 
 ---
 
