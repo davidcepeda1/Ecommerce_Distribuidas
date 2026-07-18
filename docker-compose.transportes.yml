@@ -1,0 +1,67 @@
+# =============================================================================
+#  docker-compose.transportes.yml  —  Tarea 2  ·  solo temas vistos
+#
+#  Amplía la base de la Tarea 1 agregando:
+#   - Un SEGUNDO transporte de mensajería (aquí RabbitMQ; pueden usar MQTT/NATS).
+#   - gRPC: NO necesita broker, es comunicación DIRECTA servicio-a-servicio
+#     (se define con un contrato .proto en el monorepo).
+#
+#  Levantar:   docker compose -f docker-compose.transportes.yml up -d --build
+#  Ver:        docker compose -f docker-compose.transportes.yml ps
+# =============================================================================
+services:
+
+  db:
+    image: postgres:16-alpine
+    environment: { POSTGRES_USER: app, POSTGRES_PASSWORD: app, POSTGRES_DB: app }
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Broker de EVENTOS de la Tarea 1
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+    restart: unless-stopped
+
+  # SEGUNDO transporte (Tarea 2). Ejemplo: RabbitMQ (panel en :15672, guest/guest).
+  # Pueden reemplazarlo por MQTT (eclipse-mosquitto) o NATS (nats:2-alpine).
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    ports: ["5672:5672", "15672:15672"]
+    restart: unless-stopped
+
+  # svc-pedidos: expone gRPC hacia productos y publica eventos.
+  svc-pedidos:
+    build: ./apps/pedidos
+    environment:
+      DB_HOST: db
+      REDIS_HOST: redis
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+      GRPC_PRODUCTOS_URL: svc-productos:5000     # destino gRPC
+    depends_on: [db, redis, rabbitmq]
+    restart: unless-stopped
+
+  # svc-productos: servidor gRPC (contrato productos.proto).
+  svc-productos:
+    build: ./apps/productos
+    environment: { DB_HOST: db, GRPC_PORT: 5000 }
+    depends_on: [db]
+    restart: unless-stopped
+
+  # svc-notificaciones: consumidor del segundo transporte (RabbitMQ).
+  svc-notificaciones:
+    build: ./apps/notificaciones
+    environment: { RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672 }
+    depends_on: [rabbitmq]
+    restart: unless-stopped
+
+  gateway:
+    build: ./apps/gateway
+    environment: { SVC_PEDIDOS_HOST: svc-pedidos, SVC_PEDIDOS_PORT: 3000 }
+    ports: ["3000:3000"]
+    depends_on: [svc-pedidos]
+    restart: unless-stopped
