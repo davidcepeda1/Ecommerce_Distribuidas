@@ -17,4 +17,14 @@ export class NotificacionesController {
       this.logger.error(`Error procesando evento pedido.creado: ${err}`);
     }
   }
+
+  // Segundo transporte (Avance 2 — RabbitMQ, cola): alerta de reabastecimiento.
+  @EventPattern('stock.bajo')
+  handleStockBajo(@Payload() data: { productoId: string; nombre: string; stock: number }) {
+    try {
+      this.notificacionesService.alertarStockBajo(data);
+    } catch (err) {
+      this.logger.error(`Error procesando evento stock.bajo: ${err}`);
+    }
+  }
 }

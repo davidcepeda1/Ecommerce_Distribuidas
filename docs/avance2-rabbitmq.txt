@@ -1,0 +1,33 @@
+========================================================================
+ AVANCE 2 — Evidencia segundo transporte: RabbitMQ (cola stock.bajo)
+ Productos publica 'stock.bajo' -> Notificaciones lo consume (cola durable).
+ Flujo DISTINTO al 'pedido.creado' de Redis del Avance 1.
+========================================================================
+
+--- 1) Disparar el flujo ----------------------------------------------
+Se pide 1 unidad del producto con stock 4 (umbral = 5), por lo que el
+stock queda en 3 (< umbral) y Productos publica 'stock.bajo' en RabbitMQ.
+
+$ curl -s -X POST http://localhost:3000/api/pedidos \
+    -H "Content-Type: application/json" \
+    -d '{"productoId":"3008002e-3acd-4b5f-8a52-ef84c6a8a4db","cantidad":1}'
+
+{"productoId":"3008002e-...","cantidad":1,"estado":"CONFIRMADO","id":"fcb67289-...","createdAt":"2026-07-16T15:11:56.278Z"}
+HTTP 201
+
+--- 2) Notificaciones CONSUME el evento desde RabbitMQ ----------------
+svc-notificaciones-1  | WARN [NotificacionesService] ⚠️  Stock bajo:
+   "Cargador USB-C (demo stock bajo)" (3008002e-...) quedó en 3 unidades
+   — alerta de reabastecimiento enviada.
+
+(En la misma operación, el evento Redis 'pedido.creado' del Avance 1 también se consume:)
+svc-notificaciones-1  | LOG  [NotificacionesService] 📩 Notificación enviada:
+   pedido fcb67289-... confirmado (producto 3008002e-..., cantidad 1)
+
+--- 3) Log de arranque (Redis + RabbitMQ en el mismo microservicio) ---
+svc-notificaciones-1  | Nest microservice successfully started   (Redis)
+svc-notificaciones-1  | Nest microservice successfully started   (RabbitMQ)
+svc-notificaciones-1  | 🟢 MS Notificaciones — Redis(pedido.creado) + RabbitMQ(stock.bajo)
+
+Panel de RabbitMQ para captura visual: http://localhost:15672  (guest/guest)
+  -> Queues -> notificaciones_stock  (mensajes publicados/consumidos)

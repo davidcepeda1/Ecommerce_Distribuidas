@@ -1,0 +1,22 @@
+// productos.proto — Contrato gRPC compartido del monorepo (Avance 2).
+// Lo consumen: MS Productos (servidor) y API Gateway (cliente).
+syntax = "proto3";
+
+package productos;
+
+service ProductosService {
+  // Canal de LECTURA por gRPC. El camino síncrono TCP del Avance 1 se conserva.
+  rpc ObtenerProducto (ProductoRequest) returns (ProductoResponse);
+}
+
+// Los IDs del sistema son UUID (string), no enteros.
+message ProductoRequest {
+  string id = 1;
+}
+
+message ProductoResponse {
+  string id = 1;
+  string nombre = 2;
+  double precio = 3;
+  int32  stock = 4;
+}

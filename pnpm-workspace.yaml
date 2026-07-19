@@ -1,4 +1,7 @@
 packages:
   - "apps/*"
+# Scripts de build permitidos (pnpm 10 los bloquea por defecto y aborta).
+# protobufjs entra por @grpc/proto-loader (gRPC, Avance 2).
 allowBuilds:
   '@nestjs/core': true
+  protobufjs: true

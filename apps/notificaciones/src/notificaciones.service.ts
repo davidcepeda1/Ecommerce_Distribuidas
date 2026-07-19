@@ -22,4 +22,11 @@ export class NotificacionesService {
       `📩 Notificación enviada: pedido ${evento.pedidoId} confirmado (producto ${evento.productoId}, cantidad ${evento.cantidad})`,
     );
   }
+
+  // Consumido desde RabbitMQ (Avance 2). Simula avisar al equipo de compras.
+  alertarStockBajo(evento: { productoId: string; nombre: string; stock: number }) {
+    this.logger.warn(
+      `⚠️  Stock bajo: "${evento.nombre}" (${evento.productoId}) quedó en ${evento.stock} unidades — alerta de reabastecimiento enviada.`,
+    );
+  }
 }

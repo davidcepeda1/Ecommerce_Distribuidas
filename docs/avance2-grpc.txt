@@ -1,0 +1,30 @@
+========================================================================
+ AVANCE 2 — Evidencia gRPC (Gateway --gRPC--> Productos, ObtenerProducto)
+ Contrato: proto/productos.proto
+========================================================================
+
+--- 1) Llamada gRPC EXITOSA -------------------------------------------
+$ curl -s -w "\nHTTP %{http_code}\n" \
+    http://localhost:3000/api/grpc/productos/3008002e-3acd-4b5f-8a52-ef84c6a8a4db
+
+{"id":"3008002e-3acd-4b5f-8a52-ef84c6a8a4db","nombre":"Cargador USB-C (demo stock bajo)","precio":12.5,"stock":4}
+HTTP 200
+
+--- 2) ERROR CONTROLADO (producto inexistente) ------------------------
+El handler gRPC captura la excepción con try/catch y responde NOT_FOUND;
+el Gateway lo mapea a HTTP 404. El servidor gRPC NO se cae.
+
+$ curl -s -w "\nHTTP %{http_code}\n" \
+    http://localhost:3000/api/grpc/productos/00000000-0000-0000-0000-000000000000
+
+{"statusCode":404,"message":"Producto 00000000-0000-0000-0000-000000000000 no encontrado"}
+HTTP 404
+
+--- 3) El servicio sigue vivo tras el error --------------------------
+$ docker compose ps --format "{{.Service}} {{.Status}}" | grep productos
+svc-productos Up 2 minutes
+
+--- Log de arranque (dos transportes en el mismo microservicio) -------
+svc-productos-1  | [RoutesResolver] ProductosGrpcController {/}:
+svc-productos-1  | Nest application successfully started
+svc-productos-1  | 🟢 MS Productos — TCP:3001 · gRPC:5000

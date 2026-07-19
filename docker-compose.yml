@@ -24,6 +24,17 @@ services:
     ports: ["6379:6379"]
     restart: unless-stopped
 
+  # SEGUNDO transporte de mensajería (Tarea 2). Panel de gestión en :15672 (guest/guest).
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    ports: ["5672:5672", "15672:15672"]
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
   # --- Microservicio B (segundo salto de la cadena síncrona) ---
   # Se levanta primero: MS Pedidos depende de él para validar/reservar stock.
   svc-productos:
@@ -36,13 +47,17 @@ services:
       DB_USER: app
       DB_PASSWORD: app
       DB_NAME: app
-      PORT: 3001
+      PORT: 3001                          # TCP (Avance 1)
+      GRPC_PORT: 5000                      # gRPC (Avance 2)
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+      UMBRAL_STOCK_BAJO: 5                 # bajo este umbral publica 'stock.bajo'
       # Simula trabajo real downstream (ej. consultar inventario externo).
       # Sin esto, el round-trip TCP local (~1-2ms) no deja ver la acumulación.
       LATENCIA_SIMULADA_MS: 80
-    ports: ["3001:3001"]
+    ports: ["3001:3001", "5000:5000"]     # TCP + gRPC
     depends_on:
       db: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
     restart: unless-stopped
 
   # --- Microservicio A (inicia la cadena síncrona por TCP + publica en Redis) ---
@@ -70,7 +85,7 @@ services:
         condition: service_started
     restart: unless-stopped
 
-  # --- Microservicio C (consumidor de EVENTOS por Redis, camino asíncrono) ---
+  # --- Microservicio C (consumidor de EVENTOS: Redis + RabbitMQ) ---
   svc-notificaciones:
     build:
       context: .
@@ -78,10 +93,15 @@ services:
     environment:
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672   # 2.º transporte (Avance 2)
       # Simula trabajo real de envío (email/push). No afecta al emisor porque
       # este microservicio se consume vía evento, no vía espera síncrona.
       LATENCIA_SIMULADA_MS: 150
-    depends_on: [redis]
+    depends_on:
+      redis:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
     restart: unless-stopped
 
   # --- API Gateway (punto único de entrada, expone HTTP) ---
@@ -95,6 +115,7 @@ services:
       SVC_PEDIDOS_PORT: 3000
       SVC_PRODUCTOS_HOST: svc-productos
       SVC_PRODUCTOS_PORT: 3001
+      GRPC_PRODUCTOS_URL: svc-productos:5000            # cliente gRPC (Avance 2)
     ports: ["3000:3000"]                  # el sistema se prueba en http://localhost:3000
     depends_on:
       svc-pedidos:

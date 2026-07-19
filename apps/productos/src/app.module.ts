@@ -1,9 +1,11 @@
 import { Module, OnModuleInit } from '@nestjs/common';
+import { ClientsModule, Transport } from '@nestjs/microservices';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Producto } from './producto.entity';
 import { ProductosController } from './productos.controller';
+import { ProductosGrpcController } from './productos-grpc.controller';
 import { ProductosService } from './productos.service';
 
 @Module({
@@ -19,8 +21,20 @@ import { ProductosService } from './productos.service';
       synchronize: true, // MVP académico: sin migraciones
     }),
     TypeOrmModule.forFeature([Producto]),
+    ClientsModule.register([
+      {
+        // Segundo transporte (Avance 2) — RabbitMQ, cola de alertas de stock.
+        name: 'STOCK_RMQ',
+        transport: Transport.RMQ,
+        options: {
+          urls: [process.env.RABBITMQ_URL ?? 'amqp://guest:guest@localhost:5672'],
+          queue: 'notificaciones_stock',
+          queueOptions: { durable: true },
+        },
+      },
+    ]),
   ],
-  controllers: [ProductosController],
+  controllers: [ProductosController, ProductosGrpcController],
   providers: [ProductosService],
 })
 export class AppModule implements OnModuleInit {
@@ -43,6 +57,11 @@ export class AppModule implements OnModuleInit {
       // para que no se agote a mitad de la prueba y distorsione la medición.
       await this.productoRepo.save(
         this.productoRepo.create({ nombre: 'Producto Benchmark', precio: 9.99, stock: 1_000_000 }),
+      );
+      // Stock bajo a propósito: al pedir 1 unidad cae por debajo del umbral y
+      // dispara la alerta 'stock.bajo' por RabbitMQ (evidencia del Avance 2).
+      await this.productoRepo.save(
+        this.productoRepo.create({ nombre: 'Cargador USB-C (demo stock bajo)', precio: 12.5, stock: 4 }),
       );
     }
   }

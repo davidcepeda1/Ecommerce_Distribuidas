@@ -26,7 +26,7 @@ Sistema de e-commerce simplificado a 2-3 entidades para poder concentrar el esfu
 
 ## 🛠️ Stack
 - **Framework:** NestJS (monorepo con **pnpm workspaces**, 4 apps independientes en `apps/*`)
-- **Síncrono:** TCP · **Eventos:** Redis (Pub/Sub) · **2.º transporte:** *(Avance 2)* · **Contrato:** gRPC *(Avance 2)*
+- **Síncrono:** TCP + **gRPC** (contrato `proto/productos.proto`) · **Eventos:** Redis (Pub/Sub) + **RabbitMQ** (cola) · **2.º transporte:** RabbitMQ
 - **Seguridad:** JWT + Guard *(Avance 3)* · **Observabilidad:** Sentry *(Avance 3)*
 - **BD:** PostgreSQL (TypeORM) · **Contenedores:** Docker Compose · **Estructura:** monorepo (pnpm workspaces)
 
@@ -51,6 +51,11 @@ curl -X POST http://localhost:3000/api/pedidos/async \
   -d '{"productoId": "<uuid-de-producto>", "cantidad": 1}'
 ```
 
+Consultar un producto por **gRPC** (Avance 2, camino de lectura Gateway→Productos):
+```bash
+curl http://localhost:3000/api/grpc/productos/<uuid-de-producto>
+```
+
 ## 🏗️ Arquitectura
 
 ```mermaid
@@ -68,20 +73,33 @@ flowchart LR
         PED1 -- "HTTP 200/409/503" --> GW1
     end
 
-    subgraph Camino_Asincrono["Camino B — Asíncrono (Redis)"]
+    subgraph Camino_Asincrono["Camino B — Asíncrono (Redis + RabbitMQ)"]
         direction LR
         GW2[API Gateway]
         PED2[MS Pedidos]
+        PROD2[MS Productos]
         REDIS[(Redis Pub/Sub)]
+        RMQ[(RabbitMQ cola\nnotificaciones_stock)]
         NOTIF[MS Notificaciones]
         GW2 -- "HTTP POST /api/pedidos" --> PED2
         PED2 -- "emit pedido.creado\n(NO espera)" --> REDIS
         REDIS -. "evento async" .-> NOTIF
+        PROD2 -- "emit stock.bajo\n(si stock < umbral)" --> RMQ
+        RMQ -. "cola async" .-> NOTIF
         PED2 -- "HTTP 201 inmediato" --> GW2
+    end
+
+    subgraph Camino_gRPC["Camino C — gRPC (lectura, Avance 2)"]
+        direction LR
+        GW3[API Gateway]
+        PROD3[MS Productos]
+        GW3 -- "gRPC ObtenerProducto\n(contrato .proto)" --> PROD3
+        PROD3 -- "ProductoResponse / NOT_FOUND" --> GW3
     end
 
     Cliente --> GW1
     Cliente --> GW2
+    Cliente --> GW3
 
     PROD1 -.->|TypeORM| DB[(PostgreSQL)]
     PED1 -.->|TypeORM| DB
@@ -107,6 +125,8 @@ flowchart LR
 - **API Gateway** — `apps/gateway` centraliza el punto de entrada HTTP y oculta la topología interna (TCP) de los 3 microservicios al cliente.
 - **Proxy** — `ClientProxy` de NestJS actúa como proxy remoto: el código de Pedidos invoca `productosClient.send(...)` como si fuera una llamada local.
 - **Publisher/Subscriber** — MS Pedidos publica `pedido.creado` en Redis sin conocer a sus consumidores; MS Notificaciones se suscribe sin conocer al emisor. Desacople total.
+- **Message Queue (RabbitMQ)** — MS Productos publica `stock.bajo` en una cola durable (`notificaciones_stock`); MS Notificaciones la consume. Segundo transporte del Avance 2, distinto al Pub/Sub de Redis.
+- **Contrato/RPC (gRPC)** — contrato `proto/productos.proto` compartido en el monorepo; el Gateway invoca `ObtenerProducto` sobre Productos con tipos fuertes. Camino de lectura del Avance 2.
 - **Inyección de Dependencias (DIP)** — los `ClientProxy` (`PRODUCTOS_TCP`, `EVENTOS_REDIS`, `PEDIDOS_TCP`) y los repositorios de TypeORM se inyectan vía `@Inject`/constructor en lugar de instanciarse directamente; los servicios dependen de abstracciones (`ClientProxy`, `Repository<T>`), no de implementaciones concretas.
 - **DTO + Pipes (SRP)** — `CreatePedidoDto` y `VerificarStockDto` con `class-validator` separan la responsabilidad de validar de la de ejecutar lógica de negocio; `ValidationPipe` se aplica de forma declarativa con `@UsePipes`.
 - **Exception Filters** — `RpcExceptionFilter` (en cada microservicio) y `MicroserviceExceptionFilter` (en el Gateway) centralizan el manejo de errores: ningún controlador tiene try/catch disperso, y ningún error no controlado tumba el proceso.
@@ -166,7 +186,59 @@ El **acoplamiento temporal** es la dependencia de que *todos* los servicios de u
 ---
 
 ## 🟡 Avance 2 — Comunicación: gRPC + 2.º transporte + excepciones · `tag v2-avance2`
-*(pendiente — se documentará en el siguiente corte)*
+
+Sobre el mismo sistema del Avance 1 (TCP + Redis se **conservan**) se añaden dos formas de comunicación vistas en clase: **gRPC** con contrato en el monorepo y un **segundo transporte de mensajería, RabbitMQ**.
+
+### 📄 gRPC — contrato y comunicación
+Contrato compartido en el monorepo: [`proto/productos.proto`](proto/productos.proto).
+
+```proto
+syntax = "proto3";
+package productos;
+
+service ProductosService {
+  rpc ObtenerProducto (ProductoRequest) returns (ProductoResponse);
+}
+
+message ProductoRequest  { string id = 1; }                 // los IDs son UUID (string)
+message ProductoResponse { string id = 1; string nombre = 2; double precio = 3; int32 stock = 4; }
+```
+
+- **Servidor:** MS Productos es una app **híbrida** que expone TCP (Avance 1) **y** gRPC en el mismo proceso (`apps/productos/src/main.ts`). El handler está en `productos-grpc.controller.ts` (`@GrpcMethod('ProductosService','ObtenerProducto')`).
+- **Cliente:** el Gateway registra un `ClientGrpc` (`PRODUCTOS_GRPC`) y expone `GET /api/grpc/productos/:id`, que llama a Productos por gRPC con tipos fuertes derivados del `.proto`.
+- **Evidencia:** [`docs/avance2-grpc.txt`](docs/avance2-grpc.txt) — llamada exitosa (`200`) y error controlado (`404`).
+
+![Llamada gRPC exitosa (Postman)](docs/avance2-grpc-ok.png)
+![Error gRPC controlado NOT_FOUND](docs/avance2-grpc-error.png)
+
+### 🐇 Segundo transporte — RabbitMQ (cola)
+Flujo **distinto** al `pedido.creado` de Redis. Cuando una reserva de stock deja el producto por **debajo del umbral** (`UMBRAL_STOCK_BAJO`, por defecto 5), MS Productos publica el evento **`stock.bajo`** en la cola durable `notificaciones_stock`; MS Notificaciones la consume y emite una alerta de reabastecimiento. El emisor **no espera** al consumidor (patrón *queue*, fire-and-forget).
+
+- MS Notificaciones es ahora híbrido: consume **Redis** (`pedido.creado`) **y RabbitMQ** (`stock.bajo`) a la vez.
+- Panel de RabbitMQ para captura: `http://localhost:15672` (guest/guest) → *Queues* → `notificaciones_stock`.
+- **Evidencia:** [`docs/avance2-rabbitmq.txt`](docs/avance2-rabbitmq.txt) — publicación y consumo del evento.
+
+![Cola notificaciones_stock en el panel de RabbitMQ](docs/avance2-rabbitmq-panel.png)
+
+### 🔁 Comparación de transportes
+| Transporte | Tipo | Patrón | Uso en el proyecto |
+|---|---|---|---|
+| **TCP** | Síncrono | Petición-respuesta | Cadena Gateway→Pedidos→Productos: reservar stock al crear un pedido (Avance 1). |
+| **Redis** | Asíncrono | PUB/SUB | Evento `pedido.creado`: notificar confirmación de pedido sin bloquear (Avance 1). |
+| **RabbitMQ** | Asíncrono | Cola (queue) | Evento `stock.bajo`: alerta de reabastecimiento desacoplada, cola durable (Avance 2). |
+| **gRPC** | Síncrono | Contrato/RPC | Lectura `ObtenerProducto` Gateway→Productos con contrato `.proto` tipado (Avance 2). |
+
+**¿Cuándo conviene cada uno?** El **TCP petición-respuesta** y **gRPC** sirven cuando el llamante *necesita la respuesta ya* para continuar (validar stock, leer un producto); gRPC añade además un **contrato tipado** y binario más eficiente, ideal para comunicación interna estable entre servicios. **Redis Pub/SUB** encaja cuando uno o varios interesados reaccionan a un hecho y no importa perder algún mensaje si nadie escucha (notificaciones best-effort). **RabbitMQ (cola)** conviene cuando el mensaje **no se debe perder** y puede procesarse más tarde: la cola durable retiene el evento hasta que un consumidor lo tome, desacoplando por completo emisor y consumidor en el tiempo — por eso lo usamos para la alerta de reabastecimiento.
+
+### 🧯 Manejo de excepciones
+- **gRPC:** el handler `ObtenerProducto` envuelve la lógica en **try/catch**; un producto inexistente se traduce a `RpcException` con código gRPC `NOT_FOUND` en vez de tumbar el servidor. El Gateway mapea el código gRPC a HTTP en `MicroserviceExceptionFilter` (`NOT_FOUND → 404`). Evidencia: `404` controlado en [`docs/avance2-grpc.txt`](docs/avance2-grpc.txt) con `svc-productos` **`Up`** después del error.
+- **RabbitMQ:** el consumidor `handleStockBajo` envuelve el procesamiento en try/catch: un fallo al notificar se **loguea** y no interrumpe el consumo de la cola.
+- Se mantiene la estrategia del Avance 1: `RpcExceptionFilter` (por microservicio) + `MicroserviceExceptionFilter` (Gateway) centralizan los errores en toda la aplicación.
+
+### 🗂️ Kanban (Avance 2)
+[github.com/users/davidcepeda1/projects/1](https://github.com/users/davidcepeda1/projects/1) — tarjetas de `avance-2` (contrato `.proto`, gRPC, segundo transporte, excepciones) movidas a **Hecho**.
+
+![Tablero Kanban Avance 2](docs/kanban-avance2.png)
 
 ---
 
@@ -176,4 +248,4 @@ El **acoplamiento temporal** es la dependencia de que *todos* los servicios de u
 ---
 
 ## 🏷️ Tags de entrega
-- `v1-avance1` — <<fecha>> · `v2-avance2` — <<fecha>> · `v3-final` — <<fecha>>
+- `v1-avance1` — 2026-07-14 · `v2-avance2` — 2026-07-16 · `v3-final` — <<pendiente>>

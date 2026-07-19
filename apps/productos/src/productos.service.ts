@@ -1,5 +1,5 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { RpcException } from '@nestjs/microservices';
+import { Inject, Injectable, Logger } from '@nestjs/common';
+import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Producto } from './producto.entity';
@@ -12,6 +12,7 @@ export class ProductosService {
   constructor(
     @InjectRepository(Producto)
     private readonly productoRepo: Repository<Producto>,
+    @Inject('STOCK_RMQ') private readonly stockClient: ClientProxy,
   ) {}
 
   async listar(): Promise<Producto[]> {
@@ -59,6 +60,19 @@ export class ProductosService {
 
     producto.stock -= dto.cantidad;
     const actualizado = await this.productoRepo.save(producto);
+
+    // Segundo transporte (Avance 2 — RabbitMQ, cola): si el stock queda por
+    // debajo del umbral, publica 'stock.bajo' para alertar reabastecimiento.
+    // Flujo distinto al 'pedido.creado' de Redis; el emisor no espera al consumidor.
+    const umbral = Number(process.env.UMBRAL_STOCK_BAJO ?? 5);
+    if (actualizado.stock < umbral) {
+      this.stockClient.emit('stock.bajo', {
+        productoId: actualizado.id,
+        nombre: actualizado.nombre,
+        stock: actualizado.stock,
+      });
+    }
+
     return { ok: true, producto: actualizado };
   }
 }

@@ -13,28 +13,28 @@
 ## Tarjetas iniciales
 
 ### 🟢 Avance 1 — `avance-1`
-- [ ] Definir dominio del MVP (3 microservicios + Gateway)
-- [ ] Crear repo, proteger `main`, ramas base
-- [ ] Docker Compose base (Gateway + 3 MS + Redis + Postgres)
-- [ ] MS 1, MS 2, MS 3 (CRUD mínimo + persistencia TypeORM)
-- [ ] API Gateway (entrada HTTP)
-- [ ] Camino síncrono con TCP (cadena Gateway→A→B)
-- [ ] Camino asíncrono con Redis (evento, emisor no bloquea)
-- [ ] Manejo de excepciones en la capa de servicios
-- [ ] Benchmark de latencia (prom/p95/máx) — solo JS o Postman
-- [ ] Prueba de acoplamiento temporal (tumbar servicio)
-- [ ] Diagrama de arquitectura v1 + README Avance 1
-- [ ] Tag `v1-avance1`
+- [x] Definir dominio del MVP (3 microservicios + Gateway)
+- [x] Crear repo, proteger `main`, ramas base
+- [x] Docker Compose base (Gateway + 3 MS + Redis + Postgres)
+- [x] MS 1, MS 2, MS 3 (CRUD mínimo + persistencia TypeORM)
+- [x] API Gateway (entrada HTTP)
+- [x] Camino síncrono con TCP (cadena Gateway→A→B)
+- [x] Camino asíncrono con Redis (evento, emisor no bloquea)
+- [x] Manejo de excepciones en la capa de servicios
+- [x] Benchmark de latencia (prom/p95/máx) — solo JS o Postman
+- [x] Prueba de acoplamiento temporal (tumbar servicio)
+- [x] Diagrama de arquitectura v1 + README Avance 1
+- [x] Tag `v1-avance1`
 
 ### 🟡 Avance 2 — `avance-2`
-- [ ] Definir contrato `.proto` (gRPC) entre dos microservicios
-- [ ] Implementar comunicación gRPC en el monorepo
-- [ ] try/catch para controlar errores en gRPC
-- [ ] Agregar segundo transporte (RabbitMQ/MQTT/NATS) con PUB/SUB o queue
-- [ ] Demostrar error controlado sin caída del servicio
-- [ ] Tabla comparativa de transportes
-- [ ] Diagrama actualizado + README Avance 2
-- [ ] Tag `v2-avance2`
+- [x] Definir contrato `.proto` (gRPC) entre dos microservicios
+- [x] Implementar comunicación gRPC en el monorepo
+- [x] try/catch para controlar errores en gRPC
+- [x] Agregar segundo transporte (RabbitMQ/MQTT/NATS) con PUB/SUB o queue
+- [x] Demostrar error controlado sin caída del servicio
+- [x] Tabla comparativa de transportes
+- [x] Diagrama actualizado + README Avance 2
+- [x] Tag `v2-avance2`
 
 ### 🔵 Avance 3 — `avance-3`
 - [ ] Login que emite token JWT

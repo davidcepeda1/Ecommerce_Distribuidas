@@ -18,6 +18,15 @@ export class MicroserviceExceptionFilter implements ExceptionFilter {
       return res.status(exception.getStatus()).json(exception.getResponse());
     }
 
+    // Errores gRPC (Avance 2) llegan con { code, details } en vez de { status, message }.
+    if (typeof exception?.code === 'number' && exception?.status === undefined) {
+      const grpcToHttp: Record<number, number> = { 3: 400, 5: 404, 7: 403, 16: 401 };
+      const grpcStatus = grpcToHttp[exception.code] ?? 500;
+      const grpcMsg = exception.details ?? exception.message ?? 'Error en llamada gRPC';
+      if (grpcStatus >= 500) this.logger.error(`gRPC ${exception.code} - ${grpcMsg}`);
+      return res.status(grpcStatus).json({ statusCode: grpcStatus, message: grpcMsg });
+    }
+
     const status = typeof exception?.status === 'number' ? exception.status : 500;
     const message = exception?.message ?? 'Error inesperado en el sistema';
 
