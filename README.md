@@ -62,47 +62,54 @@ curl http://localhost:3000/api/grpc/productos/<uuid-de-producto>
 flowchart LR
     Cliente((Cliente))
 
-    subgraph Camino_Sincrono["Camino A — Síncrono (TCP)"]
+    subgraph Camino_Sincrono["Camino A — Síncrono (HTTP + TCP)"]
         direction LR
         GW1[API Gateway]
         PED1[MS Pedidos]
         PROD1[MS Productos]
-        GW1 -- "HTTP POST /api/pedidos" --> PED1
-        PED1 -- "TCP: productos.verificarYReservarStock\n(espera respuesta)" --> PROD1
-        PROD1 -- "TCP: stock ok/no" --> PED1
-        PED1 -- "HTTP 200/409/503" --> GW1
+
+        Cliente -->|"HTTP POST /api/pedidos"| GW1
+        GW1 -->|"TCP: pedidos.crear"| PED1
+        PED1 -->|"TCP: productos.verificarYReservarStock\n(espera respuesta)"| PROD1
+        PROD1 -->|"TCP: StockReservado / RpcException"| PED1
+        PED1 -->|"TCP: PedidoCreado / RpcException"| GW1
+        GW1 -->|"HTTP 201 / 409 / 503"| Cliente
     end
 
-    subgraph Camino_Asincrono["Camino B — Asíncrono (Redis + RabbitMQ)"]
+    subgraph Camino_Asincrono["Camino B — Asíncrono (HTTP + Redis + RabbitMQ)"]
         direction LR
         GW2[API Gateway]
         PED2[MS Pedidos]
         PROD2[MS Productos]
         REDIS[(Redis Pub/Sub)]
-        RMQ[(RabbitMQ cola\nnotificaciones_stock)]
+        RMQ[(RabbitMQ)]
         NOTIF[MS Notificaciones]
-        GW2 -- "HTTP POST /api/pedidos" --> PED2
-        PED2 -- "emit pedido.creado\n(NO espera)" --> REDIS
-        REDIS -. "evento async" .-> NOTIF
-        PROD2 -- "emit stock.bajo\n(si stock < umbral)" --> RMQ
-        RMQ -. "cola async" .-> NOTIF
-        PED2 -- "HTTP 201 inmediato" --> GW2
+
+        Cliente -->|"HTTP POST /api/pedidos/async"| GW2
+        GW2 -->|"TCP: pedidos.crearAsync"| PED2
+        PED2 -->|"emit pedido.creado"| REDIS
+        REDIS -.->|"evento"| NOTIF
+
+        PROD2 -->|"emit stock.bajo"| RMQ
+        RMQ -.->|"cola"| NOTIF
+
+        PED2 -->|"TCP: ACK"| GW2
+        GW2 -->|"HTTP 201 Created"| Cliente
     end
 
     subgraph Camino_gRPC["Camino C — gRPC (lectura, Avance 2)"]
         direction LR
         GW3[API Gateway]
         PROD3[MS Productos]
-        GW3 -- "gRPC ObtenerProducto\n(contrato .proto)" --> PROD3
-        PROD3 -- "ProductoResponse / NOT_FOUND" --> GW3
+
+        Cliente -->|"HTTP GET /api/productos/:id"| GW3
+        GW3 -->|"gRPC ObtenerProducto"| PROD3
+        PROD3 -->|"ProductoResponse"| GW3
+        GW3 -->|"HTTP 200 / 404"| Cliente
     end
 
-    Cliente --> GW1
-    Cliente --> GW2
-    Cliente --> GW3
-
-    PROD1 -.->|TypeORM| DB[(PostgreSQL)]
-    PED1 -.->|TypeORM| DB
+    PED1 -.->|TypeORM| DB[(PostgreSQL)]
+    PROD1 -.->|TypeORM| DB
 ```
 
 **Nota:** en la implementación real, `POST /api/pedidos` ejecuta *ambos* caminos en una sola operación de negocio: espera el salto síncrono a Productos (reserva de stock) y, tras confirmar, publica el evento asíncrono a Notificaciones sin esperarlo. El endpoint `POST /api/pedidos/async` existe además como una variante puramente asíncrona (sin validación de stock), usada para poder **medir y comparar de forma aislada** la latencia de cada camino en el benchmark.
