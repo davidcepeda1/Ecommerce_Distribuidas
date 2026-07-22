@@ -1,5 +1,5 @@
 # =============================================================================
-#  docker-compose.yml  —  MVP Avance 1 (Tarea 1)
+#  docker-compose.yml — MVP Avance 1 (Tarea 1)
 #  Gateway + 3 microservicios + Redis (eventos) + Postgres.
 #
 #  Levantar:   docker compose up -d --build
@@ -10,24 +10,32 @@ services:
 
   db:
     image: postgres:16-alpine
-    environment: { POSTGRES_USER: app, POSTGRES_PASSWORD: app, POSTGRES_DB: app }
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U app"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
       interval: 10s
       timeout: 5s
       retries: 5
     restart: unless-stopped
+    volumes:
+      - ./docker/init.sql:/docker-entrypoint-initdb.d/init.sql
 
   # Broker de EVENTOS (camino asíncrono de la Tarea 1).
   redis:
     image: redis:7-alpine
-    ports: ["6379:6379"]
+    ports:
+      - "${REDIS_EXTERNAL_PORT}:6379"
     restart: unless-stopped
 
   # SEGUNDO transporte de mensajería (Tarea 2). Panel de gestión en :15672 (guest/guest).
   rabbitmq:
     image: rabbitmq:3-management-alpine
-    ports: ["5672:5672", "15672:15672"]
+    ports:
+      - "${RABBITMQ_PORT}:5672"
+      - "${RABBITMQ_MANAGEMENT_PORT}:15672"
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 10s
@@ -42,22 +50,26 @@ services:
       context: .
       dockerfile: apps/productos/Dockerfile
     environment:
-      DB_HOST: db
-      DB_PORT: 5432
-      DB_USER: app
-      DB_PASSWORD: app
-      DB_NAME: app
-      PORT: 3001                          # TCP (Avance 1)
-      GRPC_PORT: 5000                      # gRPC (Avance 2)
-      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
-      UMBRAL_STOCK_BAJO: 5                 # bajo este umbral publica 'stock.bajo'
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${PRODUCTOS_DB_NAME}
+      PORT: ${PRODUCTOS_PORT}                    # TCP (Avance 1)
+      GRPC_PORT: ${PRODUCTOS_GRPC_PORT}          # gRPC (Avance 2)
+      RABBITMQ_URL: ${RABBITMQ_URL}
+      UMBRAL_STOCK_BAJO: ${UMBRAL_STOCK_BAJO}    # bajo este umbral publica 'stock.bajo'
       # Simula trabajo real downstream (ej. consultar inventario externo).
       # Sin esto, el round-trip TCP local (~1-2ms) no deja ver la acumulación.
-      LATENCIA_SIMULADA_MS: 80
-    ports: ["3001:3001", "5000:5000"]     # TCP + gRPC
+      LATENCIA_SIMULADA_MS: ${PRODUCTOS_LATENCIA_MS}
+    ports:
+      - "${PRODUCTOS_PORT}:${PRODUCTOS_PORT}"
+      - "${PRODUCTOS_GRPC_PORT}:${PRODUCTOS_GRPC_PORT}"    # TCP + gRPC
     depends_on:
-      db: { condition: service_healthy }
-      rabbitmq: { condition: service_healthy }
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     restart: unless-stopped
 
   # --- Microservicio A (inicia la cadena síncrona por TCP + publica en Redis) ---
@@ -66,19 +78,21 @@ services:
       context: .
       dockerfile: apps/pedidos/Dockerfile
     environment:
-      DB_HOST: db
-      DB_PORT: 5432
-      DB_USER: app
-      DB_PASSWORD: app
-      DB_NAME: app
-      PORT: 3000
-      SVC_PRODUCTOS_HOST: svc-productos   # destino del salto síncrono (TCP)
-      SVC_PRODUCTOS_PORT: 3001
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-    ports: ["3010:3000"]                  # puerto TCP expuesto solo para depurar
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${PEDIDOS_DB_NAME}
+      PORT: ${PEDIDOS_PORT}
+      SVC_PRODUCTOS_HOST: ${SVC_PRODUCTOS_HOST}   # destino del salto síncrono (TCP)
+      SVC_PRODUCTOS_PORT: ${PRODUCTOS_PORT}
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+    ports:
+      - "${PEDIDOS_EXTERNAL_PORT}:${PEDIDOS_PORT}"                 # puerto TCP expuesto solo para depurar
     depends_on:
-      db: { condition: service_healthy }
+      db:
+        condition: service_healthy
       svc-productos:
         condition: service_started
       redis:
@@ -91,12 +105,12 @@ services:
       context: .
       dockerfile: apps/notificaciones/Dockerfile
     environment:
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672   # 2.º transporte (Avance 2)
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+      RABBITMQ_URL: ${RABBITMQ_URL}   # 2.º transporte (Avance 2)
       # Simula trabajo real de envío (email/push). No afecta al emisor porque
       # este microservicio se consume vía evento, no vía espera síncrona.
-      LATENCIA_SIMULADA_MS: 150
+      LATENCIA_SIMULADA_MS: ${NOTIFICACIONES_LATENCIA_MS}
     depends_on:
       redis:
         condition: service_started
@@ -110,13 +124,14 @@ services:
       context: .
       dockerfile: apps/gateway/Dockerfile
     environment:
-      PORT: 3000
-      SVC_PEDIDOS_HOST: svc-pedidos
-      SVC_PEDIDOS_PORT: 3000
-      SVC_PRODUCTOS_HOST: svc-productos
-      SVC_PRODUCTOS_PORT: 3001
-      GRPC_PRODUCTOS_URL: svc-productos:5000            # cliente gRPC (Avance 2)
-    ports: ["3000:3000"]                  # el sistema se prueba en http://localhost:3000
+      PORT: ${GATEWAY_PORT}
+      SVC_PEDIDOS_HOST: ${SVC_PEDIDOS_HOST}
+      SVC_PEDIDOS_PORT: ${PEDIDOS_PORT}
+      SVC_PRODUCTOS_HOST: ${SVC_PRODUCTOS_HOST}
+      SVC_PRODUCTOS_PORT: ${PRODUCTOS_PORT}
+      GRPC_PRODUCTOS_URL: ${GRPC_PRODUCTOS_URL}            # cliente gRPC (Avance 2)
+    ports:
+      - "${GATEWAY_PORT}:${GATEWAY_PORT}"                 # el sistema se prueba en http://localhost:3000
     depends_on:
       svc-pedidos:
         condition: service_started
