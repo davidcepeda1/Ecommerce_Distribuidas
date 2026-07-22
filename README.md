@@ -119,15 +119,6 @@ flowchart LR
 - **Ramificación:** GitHub Flow — `main` protegida, ramas `feat/…`, `fix/…`, `docs/…`, Pull Requests revisados por otro integrante, tags por avance (`v1-avance1`, `v2-avance2`, `v3-final`).
 - **Commits semánticos:** Conventional Commits (`tipo(alcance): descripción`).
 
-  ```
-  feat(productos): agregar entidad Producto y validación de stock vía TCP
-  feat(pedidos): publicar evento pedido.creado en Redis sin bloquear la respuesta
-  feat(gateway): exponer POST /api/pedidos y /api/pedidos/async
-  fix(pedidos): controlar timeout de MS Productos con RpcException 503
-  perf(benchmark): adaptar benchmark.js para soportar POST con body JSON
-  docs(readme): documentar Avance 1 con diagrama y tabla de latencias
-  ```
-
 ## 🗺️ Patrones y principios aplicados
 - **API Gateway** — `apps/gateway` centraliza el punto de entrada HTTP y oculta la topología interna (TCP) de los 3 microservicios al cliente.
 - **Proxy** — `ClientProxy` de NestJS actúa como proxy remoto: el código de Pedidos invoca `productosClient.send(...)` como si fuera una llamada local.
@@ -168,11 +159,23 @@ Evidencia completa en `docs/prueba-caida.txt` (agregar capturas de pantalla equi
 
 **Escenario 1 — apagar `svc-productos` (downstream del camino síncrono):**
 - `POST /api/pedidos` → `503 MS Productos no disponible: no se pudo verificar stock (acoplamiento temporal)`.
+
+![Caida de Productos](docs/prueba-caida/caida.png)
+
 - `POST /api/pedidos/async` → `201`, responde con normalidad porque no depende de Productos.
+
+![Consumo Async de Productos](docs/prueba-caida/product-async.png)
 
 **Escenario 2 — apagar `svc-notificaciones` (consumidor del camino asíncrono):**
 - `POST /api/pedidos` → `201`, se crea con normalidad (Pedidos nunca esperó a Notificaciones).
+
+![Caida de Notificaciones](docs/prueba-caida/pedidos.png)
+
+
 - `POST /api/pedidos/async` → `201`, el evento queda en el canal/se pierde su procesamiento, pero el emisor nunca se bloquea.
+
+![Caida de Notificaciones](docs/prueba-caida/product-async-notificacition.png)
+
 
 ### 🧠 Análisis
 La latencia se **acumula** en el camino síncrono porque cada salto TCP es una espera bloqueante encadenada: el Gateway no responde hasta que Pedidos responde, y Pedidos no responde hasta que Productos responde. El tiempo total observado (~110ms de promedio) es aproximadamente la suma del trabajo simulado en Productos (80ms) más el overhead real de dos saltos TCP, serialización y las escrituras en Postgres — cada eslabón añade su propio tiempo al total, y ese total es lo que finalmente percibe el cliente.
