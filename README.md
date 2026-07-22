@@ -62,47 +62,54 @@ curl http://localhost:3000/api/grpc/productos/<uuid-de-producto>
 flowchart LR
     Cliente((Cliente))
 
-    subgraph Camino_Sincrono["Camino A — Síncrono (TCP)"]
+    subgraph Camino_Sincrono["Camino A — Síncrono (HTTP + TCP)"]
         direction LR
         GW1[API Gateway]
         PED1[MS Pedidos]
         PROD1[MS Productos]
-        GW1 -- "HTTP POST /api/pedidos" --> PED1
-        PED1 -- "TCP: productos.verificarYReservarStock\n(espera respuesta)" --> PROD1
-        PROD1 -- "TCP: stock ok/no" --> PED1
-        PED1 -- "HTTP 200/409/503" --> GW1
+
+        Cliente -->|"HTTP POST /api/pedidos"| GW1
+        GW1 -->|"TCP: pedidos.crear"| PED1
+        PED1 -->|"TCP: productos.verificarYReservarStock\n(espera respuesta)"| PROD1
+        PROD1 -->|"TCP: StockReservado / RpcException"| PED1
+        PED1 -->|"TCP: PedidoCreado / RpcException"| GW1
+        GW1 -->|"HTTP 201 / 409 / 503"| Cliente
     end
 
-    subgraph Camino_Asincrono["Camino B — Asíncrono (Redis + RabbitMQ)"]
+    subgraph Camino_Asincrono["Camino B — Asíncrono (HTTP + Redis + RabbitMQ)"]
         direction LR
         GW2[API Gateway]
         PED2[MS Pedidos]
         PROD2[MS Productos]
         REDIS[(Redis Pub/Sub)]
-        RMQ[(RabbitMQ cola\nnotificaciones_stock)]
+        RMQ[(RabbitMQ)]
         NOTIF[MS Notificaciones]
-        GW2 -- "HTTP POST /api/pedidos" --> PED2
-        PED2 -- "emit pedido.creado\n(NO espera)" --> REDIS
-        REDIS -. "evento async" .-> NOTIF
-        PROD2 -- "emit stock.bajo\n(si stock < umbral)" --> RMQ
-        RMQ -. "cola async" .-> NOTIF
-        PED2 -- "HTTP 201 inmediato" --> GW2
+
+        Cliente -->|"HTTP POST /api/pedidos/async"| GW2
+        GW2 -->|"TCP: pedidos.crearAsync"| PED2
+        PED2 -->|"emit pedido.creado"| REDIS
+        REDIS -.->|"evento"| NOTIF
+
+        PROD2 -->|"emit stock.bajo"| RMQ
+        RMQ -.->|"cola"| NOTIF
+
+        PED2 -->|"TCP: ACK"| GW2
+        GW2 -->|"HTTP 201 Created"| Cliente
     end
 
     subgraph Camino_gRPC["Camino C — gRPC (lectura, Avance 2)"]
         direction LR
         GW3[API Gateway]
         PROD3[MS Productos]
-        GW3 -- "gRPC ObtenerProducto\n(contrato .proto)" --> PROD3
-        PROD3 -- "ProductoResponse / NOT_FOUND" --> GW3
+
+        Cliente -->|"HTTP GET /api/productos/:id"| GW3
+        GW3 -->|"gRPC ObtenerProducto"| PROD3
+        PROD3 -->|"ProductoResponse"| GW3
+        GW3 -->|"HTTP 200 / 404"| Cliente
     end
 
-    Cliente --> GW1
-    Cliente --> GW2
-    Cliente --> GW3
-
-    PROD1 -.->|TypeORM| DB[(PostgreSQL)]
-    PED1 -.->|TypeORM| DB
+    PED1 -.->|TypeORM| DB[(PostgreSQL)]
+    PROD1 -.->|TypeORM| DB
 ```
 
 **Nota:** en la implementación real, `POST /api/pedidos` ejecuta *ambos* caminos en una sola operación de negocio: espera el salto síncrono a Productos (reserva de stock) y, tras confirmar, publica el evento asíncrono a Notificaciones sin esperarlo. El endpoint `POST /api/pedidos/async` existe además como una variante puramente asíncrona (sin validación de stock), usada para poder **medir y comparar de forma aislada** la latencia de cada camino en el benchmark.
@@ -111,15 +118,6 @@ flowchart LR
 - **Kanban:** [GitHub Projects](https://github.com/users/davidcepeda1/projects/1) (captura: `docs/kanban-avance1.png`).
 - **Ramificación:** GitHub Flow — `main` protegida, ramas `feat/…`, `fix/…`, `docs/…`, Pull Requests revisados por otro integrante, tags por avance (`v1-avance1`, `v2-avance2`, `v3-final`).
 - **Commits semánticos:** Conventional Commits (`tipo(alcance): descripción`).
-
-  ```
-  feat(productos): agregar entidad Producto y validación de stock vía TCP
-  feat(pedidos): publicar evento pedido.creado en Redis sin bloquear la respuesta
-  feat(gateway): exponer POST /api/pedidos y /api/pedidos/async
-  fix(pedidos): controlar timeout de MS Productos con RpcException 503
-  perf(benchmark): adaptar benchmark.js para soportar POST con body JSON
-  docs(readme): documentar Avance 1 con diagrama y tabla de latencias
-  ```
 
 ## 🗺️ Patrones y principios aplicados
 - **API Gateway** — `apps/gateway` centraliza el punto de entrada HTTP y oculta la topología interna (TCP) de los 3 microservicios al cliente.
@@ -161,11 +159,23 @@ Evidencia completa en `docs/prueba-caida.txt` (agregar capturas de pantalla equi
 
 **Escenario 1 — apagar `svc-productos` (downstream del camino síncrono):**
 - `POST /api/pedidos` → `503 MS Productos no disponible: no se pudo verificar stock (acoplamiento temporal)`.
+
+![Caida de Productos](docs/prueba-caida/caida.png)
+
 - `POST /api/pedidos/async` → `201`, responde con normalidad porque no depende de Productos.
+
+![Consumo Async de Productos](docs/prueba-caida/product-async.png)
 
 **Escenario 2 — apagar `svc-notificaciones` (consumidor del camino asíncrono):**
 - `POST /api/pedidos` → `201`, se crea con normalidad (Pedidos nunca esperó a Notificaciones).
+
+![Caida de Notificaciones](docs/prueba-caida/pedidos.png)
+
+
 - `POST /api/pedidos/async` → `201`, el evento queda en el canal/se pierde su procesamiento, pero el emisor nunca se bloquea.
+
+![Caida de Notificaciones](docs/prueba-caida/product-async-notificacition.png)
+
 
 ### 🧠 Análisis
 La latencia se **acumula** en el camino síncrono porque cada salto TCP es una espera bloqueante encadenada: el Gateway no responde hasta que Pedidos responde, y Pedidos no responde hasta que Productos responde. El tiempo total observado (~110ms de promedio) es aproximadamente la suma del trabajo simulado en Productos (80ms) más el overhead real de dos saltos TCP, serialización y las escrituras en Postgres — cada eslabón añade su propio tiempo al total, y ese total es lo que finalmente percibe el cliente.
