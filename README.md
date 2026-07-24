@@ -258,4 +258,4 @@ Flujo **distinto** al `pedido.creado` de Redis. Cuando una reserva de stock deja
 ---
 
 ## 🏷️ Tags de entrega
-- `v1-avance1` — 2026-07-14 · `v2-avance2` — 2026-07-16 · `v3-final` — <<pendiente>>
+- `v1-avance1` — 2026-07-14 · `v2-avance2` — 2026-07-23 · `v3-final` — <<pendiente>>
